@@ -1,0 +1,111 @@
+{
+  "schema_version": 1,
+  "config": {
+    "mode": "selftest",
+    "models": [
+      "fast-bot",
+      "slow-bot"
+    ],
+    "hosts": [],
+    "games_per_pair": 2,
+    "seed": 7,
+    "max_duration": 300.0,
+    "protocol_version": "json-v1",
+    "max_tokens": 64,
+    "temperature": 0.0
+  },
+  "ranking": [
+    {
+      "name": "fast-bot",
+      "elo": 1030.5,
+      "win": 2,
+      "loss": 0,
+      "draw": 0,
+      "parse_error_rate": 0.0,
+      "ranking_valid": true
+    },
+    {
+      "name": "slow-bot",
+      "elo": 969.5,
+      "win": 0,
+      "loss": 2,
+      "draw": 0,
+      "parse_error_rate": 0.0,
+      "ranking_valid": true
+    }
+  ],
+  "matches": [
+    {
+      "seed": 7,
+      "p0": "fast-bot",
+      "p1": "slow-bot",
+      "winner": "fast-bot",
+      "reason": "played_out",
+      "duration": 6.33,
+      "flips": 4,
+      "stats": [
+        {
+          "agent": "fast-bot",
+          "calls": 38,
+          "plays": 23,
+          "invalid_moves": 0,
+          "parse_errors": 0,
+          "api_errors": 0,
+          "think_time": 1.908,
+          "warmup_status": "ok",
+          "warmup_duration": 0.0,
+          "avg_latency": 0.05
+        },
+        {
+          "agent": "slow-bot",
+          "calls": 21,
+          "plays": 10,
+          "invalid_moves": 3,
+          "parse_errors": 0,
+          "api_errors": 0,
+          "think_time": 6.317,
+          "warmup_status": "ok",
+          "warmup_duration": 0.0,
+          "avg_latency": 0.301
+        }
+      ],
+      "valid": true
+    },
+    {
+      "seed": 8,
+      "p0": "slow-bot",
+      "p1": "fast-bot",
+      "winner": "fast-bot",
+      "reason": "played_out",
+      "duration": 6.01,
+      "flips": 2,
+      "stats": [
+        {
+          "agent": "slow-bot",
+          "calls": 20,
+          "plays": 13,
+          "invalid_moves": 4,
+          "parse_errors": 0,
+          "api_errors": 0,
+          "think_time": 6.005,
+          "warmup_status": "ok",
+          "warmup_duration": 0.0,
+          "avg_latency": 0.3
+        },
+        {
+          "agent": "fast-bot",
+          "calls": 39,
+          "plays": 24,
+          "invalid_moves": 0,
+          "parse_errors": 0,
+          "api_errors": 0,
+          "think_time": 1.958,
+          "warmup_status": "ok",
+          "warmup_duration": 0.0,
+          "avg_latency": 0.05
+        }
+      ],
+      "valid": true
+    }
+  ]
+}

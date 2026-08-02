@@ -1,0 +1,10 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# 生成物(結果ファイル・ログ・一時ファイル)
+results.json
+*.log
+*.tmp
