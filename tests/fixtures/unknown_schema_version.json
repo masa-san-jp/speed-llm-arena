@@ -1,0 +1,16 @@
+{
+  "schema_version": 99,
+  "config": {
+    "mode": "selftest",
+    "models": ["fast-bot", "slow-bot"],
+    "hosts": [],
+    "games_per_pair": 2,
+    "seed": 7,
+    "max_duration": 300.0,
+    "protocol_version": "json-v1",
+    "max_tokens": 64,
+    "temperature": 0.0
+  },
+  "ranking": [],
+  "matches": []
+}
