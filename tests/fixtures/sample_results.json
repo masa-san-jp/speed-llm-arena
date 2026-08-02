@@ -41,19 +41,20 @@
       "p1": "slow-bot",
       "winner": "fast-bot",
       "reason": "played_out",
-      "duration": 6.33,
+      "duration": 6.35,
       "flips": 4,
       "stats": [
         {
           "agent": "fast-bot",
-          "calls": 38,
+          "calls": 37,
           "plays": 23,
           "invalid_moves": 0,
           "parse_errors": 0,
           "api_errors": 0,
-          "think_time": 1.908,
+          "think_time": 1.859,
           "warmup_status": "ok",
           "warmup_duration": 0.0,
+          "warmup_started_at": 1785683084.523,
           "avg_latency": 0.05
         },
         {
@@ -63,10 +64,11 @@
           "invalid_moves": 3,
           "parse_errors": 0,
           "api_errors": 0,
-          "think_time": 6.317,
+          "think_time": 6.305,
           "warmup_status": "ok",
           "warmup_duration": 0.0,
-          "avg_latency": 0.301
+          "warmup_started_at": 1785683084.523,
+          "avg_latency": 0.3
         }
       ],
       "valid": true
@@ -76,32 +78,34 @@
       "p0": "slow-bot",
       "p1": "fast-bot",
       "winner": "fast-bot",
-      "reason": "played_out",
-      "duration": 6.01,
+      "reason": "deadlock_fewer_cards",
+      "duration": 7.51,
       "flips": 2,
       "stats": [
         {
           "agent": "slow-bot",
-          "calls": 20,
-          "plays": 13,
-          "invalid_moves": 4,
+          "calls": 25,
+          "plays": 19,
+          "invalid_moves": 2,
           "parse_errors": 0,
           "api_errors": 0,
-          "think_time": 6.005,
+          "think_time": 7.506,
           "warmup_status": "ok",
           "warmup_duration": 0.0,
+          "warmup_started_at": 1785683090.875,
           "avg_latency": 0.3
         },
         {
           "agent": "fast-bot",
-          "calls": 39,
-          "plays": 24,
+          "calls": 43,
+          "plays": 21,
           "invalid_moves": 0,
           "parse_errors": 0,
           "api_errors": 0,
-          "think_time": 1.958,
+          "think_time": 2.16,
           "warmup_status": "ok",
           "warmup_duration": 0.0,
+          "warmup_started_at": 1785683090.875,
           "avg_latency": 0.05
         }
       ],

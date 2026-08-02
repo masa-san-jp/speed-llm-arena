@@ -232,6 +232,10 @@ def build_user_prompt(s: Snapshot) -> str:
 
 
 # json-v1: 応答はこのスキーマに厳密適合するJSONオブジェクト1個のみ。#2
+# Provider側の構造化出力(Ollama format / Anthropic tool schema)へのヒントとして渡す。
+# ただしこのJSON Schema自体は "pass" に card/pile が同時に付くようなケースまでは
+# 弾けないため、実際の受理は validate_action() が厳密な2形("pass"のみ、または
+# "play"+card+pile)への完全一致で最終判定する。
 ACTION_SCHEMA = {
     "type": "object",
     "properties": {
@@ -245,11 +249,15 @@ ACTION_SCHEMA = {
 
 
 def validate_action(obj) -> dict:
-    """パース済みオブジェクトをjson-v1契約で検証する。不正値はparse_errorとしてpass扱い。"""
+    """パース済みオブジェクトをjson-v1契約で検証する。契約の2形("pass"のみ/
+    "play"+card+pile)に完全一致しない場合(余計なキーを含む場合も)はparse_errorとしてpass扱いにする。
+    """
     if not isinstance(obj, dict):
         return {"action": "pass", "parse_error": True}
     action = obj.get("action")
     if action == "play":
+        if set(obj.keys()) != {"action", "card", "pile"}:
+            return {"action": "pass", "parse_error": True}
         try:
             card = int(obj["card"])
             pile = int(obj["pile"])
@@ -259,6 +267,8 @@ def validate_action(obj) -> dict:
             return {"action": "pass", "parse_error": True}
         return {"action": "play", "card": card, "pile": pile}
     if action == "pass":
+        if set(obj.keys()) != {"action"}:
+            return {"action": "pass", "parse_error": True}
         return {"action": "pass"}
     return {"action": "pass", "parse_error": True}
 
@@ -475,11 +485,18 @@ def _referee_loop(game: SpeedGame, poll: float = 0.05) -> None:
 
 
 def _run_warmup(agents: list[Agent]) -> list[dict]:
-    """試合開始前に両エージェントを並行してウォームアップする。結果は破棄する。#1"""
+    """試合開始前に両エージェントを並行してウォームアップする。結果は破棄する。#1
+
+    Issue #1 の Required observability に合わせて warmup_started_at(呼び出し開始時刻、
+    UNIX epoch秒)も記録し、ウォームアップ完了後に最初のカウント対象推論が始まったことを
+    外部から検証可能にする。
+    """
     results: list[Optional[dict]] = [None] * len(agents)
 
     def _do(idx: int) -> None:
-        results[idx] = agents[idx].warmup()
+        started_at = round(time.time(), 3)
+        w = agents[idx].warmup()
+        results[idx] = {**w, "started_at": started_at}
 
     threads = [threading.Thread(target=_do, args=(i,), daemon=True) for i in range(len(agents))]
     for t in threads:
@@ -495,10 +512,12 @@ def run_match(agent_a: Agent, agent_b: Agent, seed: int,
     stats = [
         {"agent": agent_a.name, "calls": 0, "plays": 0, "invalid_moves": 0,
          "parse_errors": 0, "api_errors": 0, "think_time": 0.0,
-         "warmup_status": warmups[0]["status"], "warmup_duration": warmups[0]["duration"]},
+         "warmup_status": warmups[0]["status"], "warmup_duration": warmups[0]["duration"],
+         "warmup_started_at": warmups[0]["started_at"]},
         {"agent": agent_b.name, "calls": 0, "plays": 0, "invalid_moves": 0,
          "parse_errors": 0, "api_errors": 0, "think_time": 0.0,
-         "warmup_status": warmups[1]["status"], "warmup_duration": warmups[1]["duration"]},
+         "warmup_status": warmups[1]["status"], "warmup_duration": warmups[1]["duration"],
+         "warmup_started_at": warmups[1]["started_at"]},
     ]
     if not all(w["status"] == "ok" for w in warmups):
         # ウォームアップ失敗試合は実対戦を行わず、無効試合としてランキングへ投入しない。

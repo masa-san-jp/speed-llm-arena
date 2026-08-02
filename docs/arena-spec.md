@@ -31,7 +31,7 @@
 
 - `run_match` は `game.start()` より前に、両エージェントの `warmup()` を並行実行する。
 - `warmup()` は本番と同じ Agent・接続先・system prompt・固定の合法局面(`WARMUP_SNAPSHOT`)で 1 回推論し、結果は破棄する。
-- ウォームアップの時間・呼び出しは対戦の `calls` / `think_time` / `avg_latency` / 勝敗判定に含めない。`warmup_status`(`"ok"` / `"failed"`)と `warmup_duration` を試合結果に別メトリクスとして記録する。
+- ウォームアップの時間・呼び出しは対戦の `calls` / `think_time` / `avg_latency` / 勝敗判定に含めない。`warmup_status`(`"ok"` / `"failed"`)、`warmup_duration`、`warmup_started_at`(ウォームアップ呼び出し開始時刻、UNIX epoch秒)を試合結果に別メトリクスとして記録する。`warmup_started_at` により、ウォームアップ完了後に最初のカウント対象推論が始まったことを外部から検証できる。
 - いずれかのエージェントのウォームアップが失敗した場合、その試合は実対戦を行わず `valid: false`、`reason: "warmup_failed"` として記録し、ランキング(Elo・勝敗数・parse_error 集計)には算入しない。`pass` の擬似応答で隠すことはしない。
 - Ollama は `keep_alive` にモデルを対戦時間中保持する値(既定は試合の最大時間 + 60 秒、または `-1` の無期限保持)を指定し、試合途中のモデルアンロードを防ぐ。
 - 厳密なモデル間比較では、モデルごとに別ホスト/別 GPU を割り当てる(`--hosts`)。同一ホスト実行は VRAM 競合ありの参考値として扱う。
@@ -133,7 +133,8 @@
           "think_time": 2.247,
           "avg_latency": 0.051,
           "warmup_status": "ok",
-          "warmup_duration": 0.0
+          "warmup_duration": 0.0,
+          "warmup_started_at": 1770000000.0
         }
       ]
     }
@@ -157,6 +158,7 @@
 | `avg_latency` | `think_time / calls`(秒) |
 | `warmup_status` | `"ok"` または `"failed"` |
 | `warmup_duration` | ウォームアップ推論にかかった時間(秒) |
+| `warmup_started_at` | ウォームアップ呼び出しを開始した時刻(UNIX epoch秒) |
 
 ## 8. ビューア MVP — Issue #3
 

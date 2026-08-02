@@ -25,10 +25,15 @@ const REQUIRED_MATCH_FIELDS = [
 ];
 const REQUIRED_STAT_FIELDS = [
   "agent", "calls", "plays", "invalid_moves", "parse_errors", "api_errors",
-  "think_time", "avg_latency", "warmup_status", "warmup_duration",
+  "think_time", "avg_latency", "warmup_status", "warmup_duration", "warmup_started_at",
 ];
 
+// obj がオブジェクトでない場合(配列・null・数値・文字列など)は全キー欠損として扱う。
+// `in` 演算子はオブジェクト以外に使うとTypeErrorになるため、ここで安全に弾く。
 function missingKeys(obj, keys) {
+  if (typeof obj !== "object" || obj === null || Array.isArray(obj)) {
+    return keys.slice();
+  }
   return keys.filter((k) => !(k in obj));
 }
 
@@ -51,8 +56,8 @@ function validateResults(data) {
       + `(対応バージョン: ${SUPPORTED_SCHEMA_VERSION})`;
   }
 
-  if (typeof data.config !== "object" || data.config === null) {
-    return "config はオブジェクトである必要があります。";
+  if (typeof data.config !== "object" || data.config === null || Array.isArray(data.config)) {
+    return "config はオブジェクトである必要があります(配列やnullは不可)。";
   }
   const missingConfig = missingKeys(data.config, REQUIRED_CONFIG_FIELDS);
   if (missingConfig.length > 0) {
