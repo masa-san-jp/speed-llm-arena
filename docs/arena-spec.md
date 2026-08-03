@@ -65,6 +65,7 @@
 - パースは応答全体を厳密に JSON として解釈する(`json.loads(text.strip())`)。**最初の `{...}` だけを拾う正規表現フォールバックは使用しない。** 全体が単一の JSON オブジェクトとして解釈できない場合は parse エラーとする。
 - `action` が `"play"` の場合、`card` は 1〜13 の整数、`pile` は 0 か 1 の整数でなければならない。範囲外・型不正・キー欠落は parse エラー。
 - `action` が `"pass"`、または未知の `action` はそれぞれ次のとおり扱う: `"pass"` は正常、それ以外(未知の値・欠落)は parse エラー。
+- キー集合はこの2形に完全一致しなければならない: `"pass"` はキーが `{"action"}` のみ、`"play"` はキーが `{"action","card","pile"}` のみ。`{"action":"pass","card":5}` のように余計なキーを含む場合(`ACTION_SCHEMA` の `additionalProperties: false` が拾いきれない組み合わせ)も parse エラーとする(`validate_action()`)。
 - parse エラーはそのターン `pass` として扱い、ゲーム進行は継続するが `parse_errors` に加算し、集計から隠さない。
 - 思考出力または厳格な JSON 出力を保証できないモデルは、正規表現救済やトークン上限の個別引き上げをせず、実測の parse エラー率でランキング適格性を判定する(次項)。
 - `protocol_version`(`"json-v1"`)、`max_tokens`、`temperature` は `results.json` の `config` に記録する。
