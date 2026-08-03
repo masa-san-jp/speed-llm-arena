@@ -19,11 +19,22 @@ import speed_arena as sa
 
 
 def free_port() -> int:
-    """未使用のTCPポート番号を1つ確保する(接続不能テスト用)。"""
+    """未使用のTCPポート番号を1つ確保する(接続不能テスト用)。
+
+    bind直後にcloseするため他プロセスとの完全な排他はできないが、返却前に
+    connect_exで実際に接続不可であることを確認し、フレーク率を下げる。
+    """
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     s.bind(("127.0.0.1", 0))
     port = s.getsockname()[1]
     s.close()
+    probe = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    probe.settimeout(0.2)
+    try:
+        if probe.connect_ex(("127.0.0.1", port)) == 0:
+            raise RuntimeError(f"port {port} is unexpectedly in use")
+    finally:
+        probe.close()
     return port
 
 
@@ -69,6 +80,7 @@ class MockServer:
 
     def __exit__(self, *_exc):
         self.httpd.shutdown()
+        self.thread.join(timeout=5.0)
         self.httpd.server_close()
 
     @property
