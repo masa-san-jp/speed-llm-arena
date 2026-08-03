@@ -300,11 +300,17 @@ class Agent(ABC):
         ...
 
     def warmup(self) -> dict:
-        """本番と同じAgent/接続先/system promptで1回推論し、結果は破棄する。#1"""
+        """本番と同じAgent/接続先/system promptで1回推論し、結果は破棄する。#1
+
+        OllamaAgent/AnthropicAgentのdecide()はネットワークエラーを例外にせず
+        {"api_error": True} として返す設計のため、例外の有無だけでは接続不通を
+        検知できない。api_errorをここでも失敗として扱い、passの擬似応答で
+        ウォームアップ失敗を隠さないようにする。
+        """
         t0 = time.monotonic()
         try:
-            self.decide(WARMUP_SNAPSHOT)
-            status = "ok"
+            result = self.decide(WARMUP_SNAPSHOT)
+            status = "failed" if result.get("api_error") else "ok"
         except Exception:
             status = "failed"
         return {"status": status, "duration": round(time.monotonic() - t0, 3)}
@@ -367,17 +373,19 @@ class AnthropicAgent(Agent):
     ネイティブ構造化出力としてJSON Schema適合を保証する。#2
     """
 
-    def __init__(self, model: str, max_tokens: int = MAX_TOKENS):
+    def __init__(self, model: str, max_tokens: int = MAX_TOKENS,
+                 base_url: str = "https://api.anthropic.com"):
         self.name = model
         self.model = model
         self.max_tokens = max_tokens
         self.api_key = os.environ.get("ANTHROPIC_API_KEY", "")
+        self.url = base_url.rstrip("/") + "/v1/messages"
         self.session = requests.Session()
 
     def decide(self, snapshot: Snapshot) -> dict:
         try:
             r = self.session.post(
-                "https://api.anthropic.com/v1/messages",
+                self.url,
                 headers={
                     "x-api-key": self.api_key,
                     "anthropic-version": "2023-06-01",

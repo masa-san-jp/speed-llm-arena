@@ -68,6 +68,14 @@ python speed_arena.py --mode anthropic --models claude-haiku-4-5-20251001 claude
 
 `viewer/speed-llm-arena-visualizer.jsx` は `results.json` を読み取り専用で表示するReactコンポーネント。ランキング・試合一覧・各種メトリクスを表示し、JSON不正や`schema_version`不一致、必須フィールド欠損は画面上に明示的なエラーとして表示する(バックエンドや結果ファイルの書き換えは対象外)。`tests/fixtures/` にサンプルおよびエラー確認用のfixtureがある。
 
+## テスト
+
+```bash
+python -m unittest discover -s tests -p "test_*.py"
+```
+
+`tests/test_engine.py` はゲームエンジン・json-v1パース・ランキング集計を、`tests/test_agents_http.py` は標準ライブラリの`http.server`によるモックサーバーでOllama/AnthropicのHTTP契約(リクエスト形状・レスポンスのパース・ウォームアップ失敗の検知)を、それぞれ実LLMサーバーなしで検証する。GitHub Actions(`.github/workflows/ci.yml`)がPython 3.10/3.11/3.12でこれらとselftestスモークテストを自動実行する。
+
 ## テスト結果
 
 - 反応速度0.05秒 vs 0.30秒のボット対戦: 速い側が全勝(実レイテンシ勝負が機能)

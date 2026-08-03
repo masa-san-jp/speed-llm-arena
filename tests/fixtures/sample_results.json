@@ -41,7 +41,7 @@
       "p1": "slow-bot",
       "winner": "fast-bot",
       "reason": "played_out",
-      "duration": 6.35,
+      "duration": 6.34,
       "flips": 4,
       "stats": [
         {
@@ -51,11 +51,11 @@
           "invalid_moves": 0,
           "parse_errors": 0,
           "api_errors": 0,
-          "think_time": 1.859,
+          "think_time": 1.879,
           "warmup_status": "ok",
           "warmup_duration": 0.0,
-          "warmup_started_at": 1785683084.523,
-          "avg_latency": 0.05
+          "warmup_started_at": 1785749535.099,
+          "avg_latency": 0.051
         },
         {
           "agent": "slow-bot",
@@ -64,10 +64,10 @@
           "invalid_moves": 3,
           "parse_errors": 0,
           "api_errors": 0,
-          "think_time": 6.305,
+          "think_time": 6.304,
           "warmup_status": "ok",
           "warmup_duration": 0.0,
-          "warmup_started_at": 1785683084.523,
+          "warmup_started_at": 1785749535.099,
           "avg_latency": 0.3
         }
       ],
@@ -89,10 +89,10 @@
           "invalid_moves": 2,
           "parse_errors": 0,
           "api_errors": 0,
-          "think_time": 7.506,
+          "think_time": 7.504,
           "warmup_status": "ok",
           "warmup_duration": 0.0,
-          "warmup_started_at": 1785683090.875,
+          "warmup_started_at": 1785749541.441,
           "avg_latency": 0.3
         },
         {
@@ -102,10 +102,10 @@
           "invalid_moves": 0,
           "parse_errors": 0,
           "api_errors": 0,
-          "think_time": 2.16,
+          "think_time": 2.158,
           "warmup_status": "ok",
           "warmup_duration": 0.0,
-          "warmup_started_at": 1785683090.875,
+          "warmup_started_at": 1785749541.441,
           "avg_latency": 0.05
         }
       ],
