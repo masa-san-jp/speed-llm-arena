@@ -1,0 +1,47 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run unit tests
+        run: python -m unittest discover -s tests -p "test_*.py" -v
+
+      - name: Selftest smoke run
+        run: python speed_arena.py --mode selftest --games 2 --out /tmp/ci_results.json
+
+      - name: Validate results.json schema shape
+        run: |
+          python - <<'PY'
+          import json
+          d = json.load(open("/tmp/ci_results.json"))
+          assert d["schema_version"] == 1
+          required_config = {
+              "mode", "models", "hosts", "games_per_pair", "seed",
+              "max_duration", "protocol_version", "max_tokens", "temperature",
+          }
+          assert required_config <= set(d["config"].keys())
+          for r in d["ranking"]:
+              assert {"name", "elo", "win", "loss", "draw",
+                      "parse_error_rate", "ranking_valid"} == set(r.keys())
+          print("results.json schema OK")
+          PY
