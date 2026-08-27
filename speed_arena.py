@@ -358,7 +358,7 @@ class OllamaAgent(Agent):
                  timeout: float = 60.0, num_predict: int = MAX_TOKENS,
                  keep_alive: float | str = -1, model_format: str = "GGUF",
                  quantization: str = "unknown", runtime_version: Optional[str] = None,
-                 size_gb: Optional[float] = None):
+                 size_gb: Optional[float] = None, num_ctx: int = 4096):
         self.name = model
         self.model = model
         self.runtime = "ollama"
@@ -371,6 +371,7 @@ class OllamaAgent(Agent):
         self.timeout = timeout
         self.num_predict = num_predict
         self.keep_alive = keep_alive
+        self.num_ctx = num_ctx
         self.session = requests.Session()
 
     def decide(self, snapshot: Snapshot) -> dict:
@@ -384,7 +385,10 @@ class OllamaAgent(Agent):
                 {"role": "system", "content": SYSTEM_PROMPT},
                 {"role": "user", "content": build_user_prompt(snapshot)},
             ],
-            "options": {"temperature": TEMPERATURE, "num_predict": self.num_predict},
+            "options": {
+                "temperature": TEMPERATURE, "num_predict": self.num_predict,
+                "num_ctx": self.num_ctx,
+            },
         }
         try:
             r = self.session.post(self.url, json=payload, timeout=self.timeout)
@@ -1672,6 +1676,8 @@ def main() -> None:
     p.add_argument("--games", type=int, default=4, help="ペアごとの対戦数(偶数推奨)")
     p.add_argument("--seed", type=int, default=42)
     p.add_argument("--max-duration", type=float, default=300.0)
+    p.add_argument("--num-ctx", type=int, default=4096,
+                   help="Ollamaのコンテキスト長。ゲーム入力には4096で十分")
     p.add_argument("--out", default="results.json")
     args = p.parse_args()
 
@@ -1708,7 +1714,8 @@ def main() -> None:
             OllamaAgent(m, host=h, keep_alive=args.max_duration + 60.0,
                         model_format=args.model_format or "GGUF",
                         quantization=args.quantization or "unknown",
-                        runtime_version=args.runtime_version, size_gb=args.size_gb)
+                        runtime_version=args.runtime_version, size_gb=args.size_gb,
+                        num_ctx=args.num_ctx)
             for m, h in zip(args.models, hosts)
         ]
         config = {"mode": args.mode, "models": list(args.models), "hosts": list(hosts)}
