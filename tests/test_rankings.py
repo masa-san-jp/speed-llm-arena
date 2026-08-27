@@ -103,6 +103,22 @@ class TestPersistentRanking(unittest.TestCase):
             self.assertEqual(position, count + 1)
             self.assertEqual(len(calls), expected_calls)
 
+    def test_ladder_draw_does_not_promote_new_player(self):
+        old = DummyAgent("old")
+        new = DummyAgent("new")
+        players = [
+            _player("old|dummy|test-FP16", 1, 1),
+            _player("new|dummy|test-FP16", 2, 2),
+        ]
+        state = {"players": players}
+
+        with patch.object(sa, "run_match", return_value=_valid_match(old, new, -1)):
+            position = sa._ladder_insertion_position(
+                players, lambda _pid: old, 10.0, 1, [], new,
+                "new|dummy|test-FP16", state,
+            )
+        self.assertEqual(position, 2)
+
     def test_new_player_is_persisted_with_elo_and_request_counters(self):
         first, second = DummyAgent("old"), DummyAgent("new")
         with tempfile.TemporaryDirectory() as directory:

@@ -1374,9 +1374,11 @@ def _ladder_insertion_position(players: list[dict], compare: Any,
         if result is None:
             raise RankingError("はしご探索で無効試合が再試行後も続いたため中止しました")
         _apply_attempts(state, records, attempt_start, ladder=False, move_rank=False)
-        if result["winner"] == new_id or result["winner"] is None:
+        if result["winner"] == new_id:
             hi = opponent["rank"]
         else:
+            # A draw is not a win for the new player. Insert it after the
+            # opponent so an equal result does not promote either player.
             lo = opponent["rank"] + 1
         seed += 2
     return lo
