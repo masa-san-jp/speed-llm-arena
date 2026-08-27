@@ -655,25 +655,30 @@ def build_ranking(agents: list[Agent], ratings: dict[str, float],
                    records: dict[str, dict], matches: list[dict]) -> list[dict]:
     """json-v1: parse_errors/callsが10試合以上の集計で1%を超えるエージェントは
     ranking_valid=Falseとしてランキング値を無効表示にする。raw値(elo/戦績/エラー率)は隠さない。#2
-    接続/API障害やウォームアップ失敗の無効試合(valid=False)は集計に含めない。
+    エラー率は無効試合(valid=False)の呼び出しも数える。判定したいのは「約束した形式で
+    返せるか」であって、その試合が勝敗として成立したかではない。試合数の下限だけは
+    有効試合で数える。永続ランキング(§10)と同じ規則。
     タイムアウトはゲーム結果として集計し、残り枚数の少ない側を勝者とする。
     """
     calls = {a.name: 0 for a in agents}
     parse_errors = {a.name: 0 for a in agents}
     games_played = {a.name: 0 for a in agents}
     for m in matches:
+        for s in m["stats"]:
+            calls[s["agent"]] += s["calls"]
+            parse_errors[s["agent"]] += s["parse_errors"]
         if not m["valid"]:
             continue
         games_played[m["p0"]] += 1
         games_played[m["p1"]] += 1
-        for s in m["stats"]:
-            calls[s["agent"]] += s["calls"]
-            parse_errors[s["agent"]] += s["parse_errors"]
     ranking = []
     for n, r in ratings.items():
-        rate = round(parse_errors[n] / calls[n], 4) if calls[n] else 0.0
+        # 判定は丸める前の比率で行う。丸めた値で見ると 1.004% が 1.00% になって通る。
+        # 永続ランキング(_refresh_player_derived)も同じく生の比率で判定している。
+        raw_rate = parse_errors[n] / calls[n] if calls[n] else 0.0
+        rate = round(raw_rate, 4)
         ranking_valid = not (
-            games_played[n] >= PARSE_ERROR_MIN_GAMES and rate > PARSE_ERROR_RATE_THRESHOLD
+            games_played[n] >= PARSE_ERROR_MIN_GAMES and raw_rate > PARSE_ERROR_RATE_THRESHOLD
         )
         ranking.append({
             "name": n, "elo": round(r, 1), **records[n],
@@ -1349,12 +1354,14 @@ def _run_persistent_pair(agent_a: Agent, agent_b: Agent, player_a: str, player_b
 def _ladder_insertion_position(players: list[dict], compare: Any,
                                max_duration: float, seed: int,
                                records: list[dict], new_agent: Agent,
-                               new_id: str, state: dict) -> int:
+                               new_id: str, state: dict) -> tuple[int, int]:
+    """Return (rank, next_seed). The caller cannot recompute the seed from the
+    record count: a retried probe writes two records but consumes one slot."""
     # The new player is temporarily appended at the bottom so its counters
     # can be updated while probing. It is not part of the search range.
     original_n = len(players) - 1
     if original_n == 0:
-        return 1
+        return 1, seed
     lo, hi = 1, original_n + 1
     midpoint = original_n > 10
     while lo < hi:
@@ -1381,7 +1388,7 @@ def _ladder_insertion_position(players: list[dict], compare: Any,
             # opponent so an equal result does not promote either player.
             lo = opponent["rank"] + 1
         seed += 2
-    return lo
+    return lo, seed
 
 
 def _register_new_player(state: dict, agent: Agent, player_id: str,
@@ -1526,11 +1533,10 @@ def run_persistent_tournament(agents: list[Agent], config: dict,
                 if player_id in existing_ids:
                     continue
                 player = _register_new_player(state, agent, player_id, metadata)
-                rank = _ladder_insertion_position(
+                rank, seed = _ladder_insertion_position(
                     state["players"], lambda pid: agents_by_id[pid],
                     max_duration, seed, records, agent, player_id, state,
                 )
-                seed += 2 * sum(1 for r in records if r["p0"] == player_id or r["p1"] == player_id)
                 state["players"].remove(player)
                 state["players"].insert(rank - 1, player)
                 _renumber(state["players"])

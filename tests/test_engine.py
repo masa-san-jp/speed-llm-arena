@@ -255,7 +255,7 @@ class TestBuildRanking(unittest.TestCase):
         by_name = {r["name"]: r for r in ranking}
         self.assertTrue(by_name["a"]["ranking_valid"])
 
-    def test_invalid_matches_excluded_from_aggregation(self):
+    def test_invalid_matches_count_calls_but_not_games(self):
         agents = [sa.HeuristicAgent("a"), sa.HeuristicAgent("b")]
         matches = [_match("a", "b", None, valid=False, stats_overrides={
             "a": {"parse_errors": 5, "calls": 5}, "b": {"parse_errors": 5, "calls": 5},
@@ -264,8 +264,9 @@ class TestBuildRanking(unittest.TestCase):
         records = {"a": {"win": 0, "loss": 0, "draw": 0}, "b": {"win": 0, "loss": 0, "draw": 0}}
         ranking = sa.build_ranking(agents, ratings, records, matches)
         by_name = {r["name"]: r for r in ranking}
-        # 無効試合しかないのでparse_error_rateは0扱い、ranking_validはTrueのまま
-        self.assertEqual(by_name["a"]["parse_error_rate"], 0.0)
+        # エラー率は無効試合の呼び出しも数える（形式を守れるかは試合の成立と関係ない）。
+        self.assertEqual(by_name["a"]["parse_error_rate"], 1.0)
+        # 一方で試合数の下限は有効試合で数えるので、有効試合0ならまだ弾かない。
         self.assertTrue(by_name["a"]["ranking_valid"])
 
 
