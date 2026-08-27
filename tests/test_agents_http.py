@@ -142,6 +142,21 @@ class TestOllamaAgentHTTP(unittest.TestCase):
         result = agent.warmup()
         self.assertEqual(result["status"], "failed")
 
+    def test_warmup_gets_a_longer_timeout_than_a_move(self):
+        calls = []
+
+        class RecordingSession:
+            def post(self, url, json=None, timeout=None):
+                calls.append(timeout)
+                raise sa.requests.RequestException("stop here")
+
+        agent = sa.OllamaAgent("test-model", host="http://127.0.0.1:1",
+                               timeout=60.0, warmup_timeout=900.0)
+        agent.session = RecordingSession()
+        agent.warmup()
+        agent.decide(sa.WARMUP_SNAPSHOT)
+        self.assertEqual(calls, [900.0, 60.0])
+
     def test_quantization_is_asked_once_when_not_given(self):
         with MockServer([{"details": {"quantization_level": "MXFP4"}}]) as server:
             agent = sa.OllamaAgent("test-model", host=server.url)

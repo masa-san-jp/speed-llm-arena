@@ -338,11 +338,15 @@ class Agent(ABC):
         """
         t0 = time.monotonic()
         try:
-            result = self.decide(WARMUP_SNAPSHOT)
+            result = self._warmup_decide(WARMUP_SNAPSHOT)
             status = "failed" if result.get("api_error") else "ok"
         except Exception:
             status = "failed"
         return {"status": status, "duration": round(time.monotonic() - t0, 3)}
+
+    def _warmup_decide(self, snapshot: Snapshot) -> dict:
+        """Runtimes whose first call also loads the model override this."""
+        return self.decide(snapshot)
 
 
 class OllamaAgent(Agent):
@@ -355,7 +359,8 @@ class OllamaAgent(Agent):
     """
 
     def __init__(self, model: str, host: str = "http://localhost:11434",
-                 timeout: float = 60.0, num_predict: int = MAX_TOKENS,
+                 timeout: float = 60.0, warmup_timeout: float = 900.0,
+                 num_predict: int = MAX_TOKENS,
                  keep_alive: float | str = -1, model_format: str = "GGUF",
                  quantization: Optional[str] = None, runtime_version: Optional[str] = None,
                  size_gb: Optional[float] = None, num_ctx: int = 4096):
@@ -370,6 +375,7 @@ class OllamaAgent(Agent):
         self.url = host.rstrip("/") + "/api/chat"
         self.show_url = host.rstrip("/") + "/api/show"
         self.timeout = timeout
+        self.warmup_timeout = warmup_timeout
         self.num_predict = num_predict
         self.keep_alive = keep_alive
         self.num_ctx = num_ctx
@@ -394,7 +400,14 @@ class OllamaAgent(Agent):
             return "unknown"
         return level or "unknown"
 
-    def decide(self, snapshot: Snapshot) -> dict:
+    def _warmup_decide(self, snapshot: Snapshot) -> dict:
+        # The warmup call is what loads the model, and a cold 20GB load takes
+        # far longer than a move is allowed to. Sharing the move timeout made
+        # every first match on a cold host fail as warmup_failed, which the
+        # ladder then aborted on. The move budget is unchanged.
+        return self.decide(snapshot, timeout=self.warmup_timeout)
+
+    def decide(self, snapshot: Snapshot, timeout: Optional[float] = None) -> dict:
         payload = {
             "model": self.model,
             "stream": False,
@@ -411,7 +424,8 @@ class OllamaAgent(Agent):
             },
         }
         try:
-            r = self.session.post(self.url, json=payload, timeout=self.timeout)
+            r = self.session.post(self.url, json=payload,
+                                  timeout=timeout if timeout is not None else self.timeout)
             r.raise_for_status()
             content = r.json().get("message", {}).get("content", "")
         except requests.RequestException:
