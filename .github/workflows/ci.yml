@@ -45,3 +45,9 @@ jobs:
                       "parse_error_rate", "ranking_valid"} == set(r.keys())
           print("results.json schema OK")
           PY
+
+      - name: Render persistent rankings
+        run: python speed_arena.py --render-rankings --rankings-dir rankings
+
+      - name: Check generated rankings are current
+        run: git diff --exit-code -- rankings/

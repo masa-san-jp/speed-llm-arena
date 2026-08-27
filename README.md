@@ -7,7 +7,8 @@
 - ルール判定は決定論的なPythonエンジン。LLMには局面をJSONで渡し、着手をJSONで返させる
 - プレイヤーごとに独立スレッドで「観測 → 思考 → 着手」をループ。思考中に相手が先に出せば競合負けとして記録される
 - モデルごとに平均レイテンシ・有効手・無効手・パース失敗を計測し、「速いが雑」「遅いが正確」を分析できる
-- 総当たり戦でElo(K=32)を算出。先手を交互に入れ替えて座席バイアスを除去
+- マシンごとの永続ランキング。既定のはしご方式で新しい選手を必要な相手だけと対戦させる
+- 検証用の総当たり方式と、上位3体の推移性検証にも対応
 
 ## 必要環境
 
@@ -20,21 +21,42 @@ pip install -r requirements.txt
 ## 使い方
 
 ```bash
-# 1. エンジン検証(LLM不要のベースライン同士)
+# 1. エンジン検証(LLM不要のベースライン同士、従来モード)
 python speed_arena.py --mode selftest
 
-# 2. ローカルLLM同士 (Ollama)
-python speed_arena.py --mode ollama --models gpt-oss:20b gemma3:4b --games 10
+# 2. 永続ランキングを更新 (既定は ladder、Ollama)
+python speed_arena.py --mode ladder --machine-id gx10 \
+    --models gpt-oss:20b gemma3:4b --games 10 \
+    --quantization Q4_K_M
 
 # 3. モデルごとに別ホストを割り当てて公平にレイテンシ計測
-python speed_arena.py --mode ollama --models gpt-oss:20b gemma3:4b \
+python speed_arena.py --mode ladder --machine-id gx10 --models gpt-oss:20b gemma3:4b \
     --hosts http://192.168.1.10:11434 http://192.168.1.11:11434
 
-# 4. Claude APIでテスト(要 ANTHROPIC_API_KEY)
-python speed_arena.py --mode anthropic --models claude-haiku-4-5-20251001 claude-sonnet-4-6
+# 4. 総当たり方式で更新 (検証用)
+python speed_arena.py --mode round-robin --machine-id gx10 \
+    --models gpt-oss:20b gemma3:4b --games 4
+
+# 5. 上位3体の推移性を追加検証
+python speed_arena.py --mode ladder --machine-id gx10 \
+    --models gpt-oss:20b gemma3:4b --verify-transitivity
+
+# 6. Claude APIでテスト(要 ANTHROPIC_API_KEY)
+python speed_arena.py --mode ladder --runtime anthropic --machine-id cloud \
+    --models claude-haiku-4-5-20251001 claude-sonnet-4-6
+
+# 7. JSONからMarkdownを再生成 (CIでも実行)
+python speed_arena.py --render-rankings
 ```
 
-結果は `results.json` に出力される(schema_version付きJSON。詳細な契約は `docs/arena-spec.md` を参照)。自己対戦・本番対戦で生成した `results.json` はリポジトリにコミットしない(`.gitignore` 対象)。再現用fixtureは `tests/fixtures/` に別名で管理する。
+結果は `results.json` に出力され、ランキングの正本は `rankings/<machine_id>.json` に更新される。ランキング JSON はマシンごとにコミットし、`rankings/<machine_id>.md` は `--render-rankings` で生成する。`results.json` はコミットしない(`.gitignore` 対象)。詳細な契約は `docs/arena-spec.md` を参照する。
+
+## マシン別ランキング
+
+ランキングは実行したマシンごとに独立して管理し、生成された表を参照する。
+
+- [ランキング一覧](rankings/)
+- [CI 用ランキング](rankings/ci.md) — 最終更新 2026-08-27
 
 詳しい仕様(ルール・計測定義・公平性・JSON契約)の正本は `docs/arena-spec.md` と対応するGitHub Issue。以下は入口としての概要のみ。
 
@@ -62,7 +84,7 @@ python speed_arena.py --mode anthropic --models claude-haiku-4-5-20251001 claude
 
 ## 計測メトリクス
 
-`results.json` にはランキング(Elo・勝敗数・parse_error_rate・ranking_valid)に加え、試合ごとにモデルごとの LLM呼び出し回数、平均レイテンシ、有効着手数、無効着手数、JSONパース失敗数、APIエラー数、ウォームアップ状態を記録する。
+`results.json` にはランキング(Elo・勝敗数・parse_error_rate・ranking_valid)に加え、試合ごとにモデルごとの LLM呼び出し回数、平均レイテンシ、有効着手数、無効着手数、JSONパース失敗数、APIエラー数、ウォームアップ状態を記録する。永続ランキングは `total_requests`、`latency_requests`、`total_latency_ms` から平均値を再計算する。
 
 ## ビューア
 

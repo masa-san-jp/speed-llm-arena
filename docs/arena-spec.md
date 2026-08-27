@@ -146,6 +146,81 @@
 - `schema_version` が現行値(1)と一致しない場合、消費側(ビューア等)はエラーとして明示し、黙って空表示にしない。
 - `event_log`(観戦用リプレイ)はこの MVP 契約に含めない。将来追加する場合は `schema_version` を上げる。
 
+## 10. 永続ランキング — Issue #7 / #8
+
+ランキングは1回の実行で捨てず、マシンごとの `rankings/<machine_id>.json` に保存する。この節は対応 Issue の写しであり、ランキングの同一性・更新・破損時の動作・Markdown 生成を定義する。
+
+### 10.1 選手の同一性
+
+選手 ID は `モデル / 実行系 / 形式・量子化` の3つで決める。`player_id` は次の文字列を `|` で連結する。
+
+```text
+モデル|実行系|形式-量子化
+qwen3.8:27b|ollama|GGUF-Q4_K_M
+```
+
+モデル名の `:` や `/` はそのまま許す。4要素のいずれかに `|` が入る場合は実行前に失敗させ、空欄も許さない。未量子化・FP16 なども `safetensors-FP16` のように形式と精度を両方指定する。
+
+### 10.2 マシンは分け、実行系は分けない
+
+ランキングは `machine_id` ごとに独立する。同じマシン内では実行系・形式・量子化が異なる選手も同じ表で競わせる。マシンをまたいだ対戦は行わず、比較は同じ `player_id` の点数をマシン間で並べる。
+
+`machine_id` はファイル名になるため、`[a-z0-9][a-z0-9._-]{0,63}` のみ許可する。`.` 始まり、`..`、`/` などは実行前に拒否する。
+
+### 10.3 はしご方式と Elo
+
+`--mode ladder` を既定とし、順位の正本は `players[]` の `rank` 順、Elo は併記値とする。Elo で並べ替えない。新入りは `lo=1, hi=N+1` から探索し、`N<=10` では `lo`、`N>=11` では `(lo+hi)//2` の順位に挑戦する。勝ち・引き分けは `hi=相手の順位`、負けは `lo=相手の順位+1` とし、`lo>=hi` で `lo` に挿入する。`N=0` は無試合で rank 1、`N=1` は通常探索する。
+
+既存選手の有効な再戦では、上位の勝者は順位を動かさず、下位の勝者だけが敗者の位置へ移り、間の選手を1つ押し下げる。引き分けは順位を動かさない。番狂わせでも Elo が動くのは対戦した2選手だけである。
+
+Elo は初期値1000、K=32、期待勝率 `1/(1+10**((相手-自分)/400))`、勝ち1・引き分け0.5・負け0で、更新前の両者の値から同時に計算する。保存時は小数第1位に丸める。
+
+`--mode round-robin` は参加選手を全ペアで対戦させ、勝ち点（勝ち1、引き分け0.5、負け0）→ Elo → `entry_no` 昇順で並べる。無効試合は勝ち点・試合数から除外し、参加しなかった選手はその下に元の相対順で置く。`entry_no` は既存最大値+1で、欠番を再利用しない。
+
+### 10.4 検証・推移性
+
+`--verify-transitivity` は最終ランキング上位3体の3ペアを追加対戦させる。検証試合には `verification: true` を付け、Elo・順位・戦績・レイテンシ・パースエラー率のどれにも加えない。
+
+- 3試合の勝ち数が2/1/0なら `status: "ok"`、`transitivity_warning: false`
+- 全員1勝なら `status: "cyclic"`、`transitivity_warning: true`
+- 引き分けがあれば `status: "inconclusive"`, `inconclusive: true` とし、警告は変更しない
+- 3体未満なら `status: "skipped"`, `reason: "players<3"` とし、警告は変更しない
+- エラー・タイムアウト・パース不能は同じ組を1回だけ再試行し、それでも失敗なら `status: "aborted"`, `failed_pair`, 完了済みの0〜2件の `matches` を残す。偽の勝敗には変換しない
+
+`transitivity_detail` は常に `checked_at` と `status` を持つ。初期値は `{"checked_at": null, "status": "skipped", "reason": "never_run"}`。`status` は `ok` / `cyclic` / `inconclusive` / `skipped` / `aborted` のいずれかである。
+
+### 10.5 JSON の構造、母数、安全な書き込み
+
+正本は次の構造を持つ。`avg_latency_ms` と `parse_error_rate` は母数から再計算する派生値であり、平均値だけで更新しない。
+
+```json
+{
+  "schema_version": 1,
+  "machine_id": "gx10",
+  "machine": {"gpu": "NVIDIA GB10", "memory_gb": 121},
+  "updated_at": "2026-08-27T09:40:00+09:00",
+  "transitivity_warning": false,
+  "transitivity_detail": {"checked_at": null, "status": "skipped", "reason": "never_run"},
+  "players": []
+}
+```
+
+`total_requests` は送信した全リクエスト、`latency_requests` は最後まで応答が返ったリクエスト、`parse_errors` は応答が返ったが JSON 契約に適合しなかった回数とする。タイムアウト・API エラーはレイテンシ母数に入れず、パースエラーは入れる。`latency_requests=0` の平均は `null` とする。
+
+実行は `rankings/<machine_id>.json.lock` を `O_EXCL` で取得し、ロック本文に `pid`、`host`、`acquired_at` を JSON で書いて `fsync` する。読込・全対戦・書戻しを1つのロック内で行う。ロックを取れなければ待たずに失敗する。壊れたロックは更新時刻が30分より古い場合だけ回収し、別ホスト、生存中の PID、`EPERM` は回収しない。`ESRCH` は時間にかかわらず回収する。
+
+ランキング JSON は読み込み時に構造を検証する。`schema_version` 欠落、rank の抜け・重複、player ID の重複・再計算値不一致、負の母数、有限でない数値、machine ID 不一致、制御文字・タブ・改行・長さ超過などは壊れたファイルとする。壊れたファイルは元を上書きせず `*.corrupt-YYYYMMDD-HHMMSS` に `O_EXCL` で退避し、同名なら `-2`, `-3` とする。存在しない JSON は空ランキングとして開始する。より新しい schema や移行不能な古い schema は読み書きせず終了する。
+
+書き込みは同じディレクトリの予測不能な `mkstemp`（0600）へ行い、内容を `fsync`、0644 に変更して `os.replace` し、最後に親ディレクトリも `fsync` する。試合途中には書き戻さず、1回の実行を原子的な確定単位とする。
+
+### 10.6 Markdown と CI
+
+`python3 speed_arena.py --render-rankings` は `rankings/*.json` を読むだけで対応する `.md` を決定的に生成する。生成時刻は埋め込まない。Markdown 表のモデル名・実行系・量子化・戦績・平均応答など文字列セルはバッククォートで囲む。
+
+README は各マシンの `rankings/<machine_id>.md` を参照し、CI は生成後に `git diff --exit-code -- rankings/` を実行する。JSON 変更時は対応する Markdown もコミットし、古い Markdown が残れば CI を失敗させる。
+
+受け入れテストは、はしごの10体/11体境界、番狂わせの押し出し、0体/1体、Elo、無効試合の母数と再試行、JSON 破損と退避衝突、schema_version、死んだロック、原子的書き込み、Markdown 同期を `tests/` で検証する。
+
 ## 7. 計測メトリクスの定義
 
 | フィールド | 意味 |

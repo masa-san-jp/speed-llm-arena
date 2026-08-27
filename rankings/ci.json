@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "machine_id": "ci",
+  "machine": {
+    "purpose": "CI fixture"
+  },
+  "updated_at": "2026-08-27T00:00:00+09:00",
+  "transitivity_warning": false,
+  "transitivity_detail": {
+    "checked_at": null,
+    "status": "skipped",
+    "reason": "never_run"
+  },
+  "players": []
+}
