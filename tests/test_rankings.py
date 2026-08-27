@@ -113,7 +113,7 @@ class TestPersistentRanking(unittest.TestCase):
         state = {"players": players}
 
         with patch.object(sa, "run_match", return_value=_valid_match(old, new, -1)):
-            position = sa._ladder_insertion_position(
+            position, _next_seed = sa._ladder_insertion_position(
                 players, lambda _pid: old, 10.0, 1, [], new,
                 "new|dummy|test-FP16", state,
             )
