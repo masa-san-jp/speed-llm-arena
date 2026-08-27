@@ -59,6 +59,20 @@ python speed_arena.py --render-rankings
 - [CI 用ランキング](rankings/ci.md) — 最終更新 2026-08-27
 - [MBP-M4-Max-128GB](rankings/mbp-m4-max-128gb.md) — ローカルOllama
 
+### MBP-M4-Max-128GB
+
+Apple M4 Max / メモリ128GB / Ollama / 2026-08-27計測
+
+短時間で比較するため、同じ1手局面を使ったローカル確認ランキングです。順位とEloを併記しています。詳しい条件と正本データは[ランキング詳細](rankings/mbp-m4-max-128gb.md)と[JSON](rankings/mbp-m4-max-128gb.json)を参照してください。
+
+| 順位 | モデル | 戦績 | Elo | 平均応答 |
+|---:|---|---:|---:|---:|
+| 1 | `gemma4:e4b` | 2勝 0敗 0分 | 1032.6 | 2507.75ms |
+| 2 | `qwen3.8:27b` | 3勝 1敗 0分 | 1028.5 | 6826.96ms |
+| 3 | `qwen2.5:0.5b` | 0勝 2敗 1分 | 970.8 | 277.436ms |
+| 4 | `gpt-oss:20b` | 0勝 1敗 2分 | 984.0 | 955.611ms |
+| 5 | `gemma4:26b` | 0勝 1敗 1分 | 984.0 | 924.92ms |
+
 詳しい仕様(ルール・計測定義・公平性・JSON契約)の正本は `docs/arena-spec.md` と対応するGitHub Issue。以下は入口としての概要のみ。
 
 ## ルール実装
