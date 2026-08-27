@@ -1,7 +1,11 @@
 {
   "schema_version": 1,
-  "machine_id": "local",
+  "machine_id": "mbp-m4-max-128gb",
   "machine": {
+    "display_name": "MBP-M4-Max-128GB",
+    "model": "MacBook Pro",
+    "chip": "Apple M4 Max",
+    "memory_gb": 128,
     "host": "MasanoMacBook-Pro.local",
     "ollama": "local",
     "context_length": 2048,

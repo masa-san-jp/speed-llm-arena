@@ -49,7 +49,7 @@ python speed_arena.py --mode ladder --runtime anthropic --machine-id cloud \
 python speed_arena.py --render-rankings
 ```
 
-結果は `results.json` に出力され、ランキングの正本は `rankings/<machine_id>.json` に更新される。ランキング JSON はマシンごとにコミットし、`rankings/<machine_id>.md` は `--render-rankings` で生成する。`results.json` はコミットしない(`.gitignore` 対象)。詳細な契約は `docs/arena-spec.md` を参照する。
+結果は `results.json` に出力され、ランキングの正本は `rankings/<machine_id>.json` に更新される。`--machine` に `display_name`、`chip`、`memory_gb` などを指定すると、Markdownにマシン名と構成を表示できる。ランキング JSON はマシンごとにコミットし、`rankings/<machine_id>.md` は `--render-rankings` で生成する。`results.json` はコミットしない(`.gitignore` 対象)。詳細な契約は `docs/arena-spec.md` を参照する。
 
 ## マシン別ランキング
 
@@ -57,6 +57,7 @@ python speed_arena.py --render-rankings
 
 - [ランキング一覧](rankings/)
 - [CI 用ランキング](rankings/ci.md) — 最終更新 2026-08-27
+- [MBP-M4-Max-128GB](rankings/mbp-m4-max-128gb.md) — ローカルOllama
 
 詳しい仕様(ルール・計測定義・公平性・JSON契約)の正本は `docs/arena-spec.md` と対応するGitHub Issue。以下は入口としての概要のみ。
 

@@ -263,7 +263,10 @@ class TestPersistentRanking(unittest.TestCase):
             self.assertEqual(path.read_bytes(), before)
 
     def test_markdown_generation_is_deterministic_and_quotes_cells(self):
-        state = sa._new_ranking("test", {"gpu": "Test *GPU*", "memory_gb": 8})
+        state = sa._new_ranking("test", {
+            "display_name": "MBP-M4-Max-128GB",
+            "gpu": "Test *GPU*", "memory_gb": 8,
+        })
         state["players"] = [_player("llm_jp|dummy|test-FP16", 1, 1)]
         state["players"][0]["avg_latency_ms"] = 12.5
         state["updated_at"] = "2026-08-27T00:00:00+09:00"
@@ -271,6 +274,7 @@ class TestPersistentRanking(unittest.TestCase):
         first = sa.render_ranking_markdown(state)
         second = sa.render_ranking_markdown(state)
         self.assertEqual(first, second)
+        self.assertIn("# MBP-M4-Max-128GB ランキング", first)
         self.assertIn("`llm_jp`", first)
         self.assertIn("`dummy`", first)
         self.assertIn("`FP16`", first)

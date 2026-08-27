@@ -1605,6 +1605,8 @@ def run_persistent_tournament(agents: list[Agent], config: dict,
 
 def _machine_summary(machine: dict, updated_at: str) -> str:
     parts = []
+    if machine.get("chip"):
+        parts.append(str(machine["chip"]))
     if machine.get("cpu"):
         parts.append(str(machine["cpu"]))
     if machine.get("gpu"):
@@ -1623,8 +1625,9 @@ def render_ranking_markdown(data: dict) -> str:
     # edited/stale derived field can never change the rendered table.
     for player in data["players"]:
         _refresh_player_derived(player)
+    display_name = data.get("machine", {}).get("display_name") or data["machine_id"]
     lines = [
-        f"# {data['machine_id']} ランキング", "",
+        f"# {display_name} ランキング", "",
         _machine_summary(data.get("machine", {}), data["updated_at"]), "",
         "| # | モデル | 実行系 | 量子化 | Elo | 戦績 | 平均応答 |",
         "|---|--------|--------|--------|-----|------|----------|",
