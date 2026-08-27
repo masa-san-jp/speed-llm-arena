@@ -1671,8 +1671,8 @@ def render_ranking_markdown(data: dict) -> str:
     lines = [
         f"# {display_name} ランキング", "",
         _machine_summary(data.get("machine", {}), data["updated_at"]), "",
-        "| # | モデル | 実行系 | 量子化 | Elo | 戦績 | 平均応答 |",
-        "|---|--------|--------|--------|-----|------|----------|",
+        "| # | モデル | 実行系 | 量子化 | Elo | 戦績 | 平均応答 | parseエラー率 |",
+        "|---|--------|--------|--------|-----|------|----------|----------------|",
     ]
     for player in data["players"]:
         avg = player.get("avg_latency_ms")
@@ -1682,10 +1682,18 @@ def render_ranking_markdown(data: dict) -> str:
             avg_text = f"{int(avg)}ms"
         else:
             avg_text = f"{avg:g}ms"
+        # An average response time alone reads as a speed result even when the
+        # model never returned a usable move: gpt-oss:20b came back empty 215
+        # times out of 215 and still rendered as the fastest row.
+        rate = player.get("parse_error_rate") or 0.0
+        rate_text = f"{rate * 100:g}%"
+        if not player.get("ranking_valid", True):
+            rate_text += " ⚠ ランキング対象外"
         lines.append(
             f"| {player['rank']} | `{player['model']}` | `{player['runtime']}` | "
             f"`{player['quantization']}` | {float(player['elo']):.1f} | "
-            f"`{player['win']}W-{player['loss']}L-{player['draw']}D` | `{avg_text}` |"
+            f"`{player['win']}W-{player['loss']}L-{player['draw']}D` | `{avg_text}` | "
+            f"{rate_text} |"
         )
     return "\n".join(lines) + "\n"
 

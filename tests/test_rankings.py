@@ -367,6 +367,31 @@ class TestPersistentRanking(unittest.TestCase):
         self.assertIn("`dummy`", first)
         self.assertIn("`FP16`", first)
 
+    def test_markdown_shows_parse_error_rate_next_to_the_speed(self):
+        state = sa._new_ranking("test", {"display_name": "GX10", "gpu": "GB10", "memory_gb": 121})
+        silent = _player("silent|ollama|GGUF-MXFP4", 1, 1)
+        silent.update({"total_requests": 215, "latency_requests": 215,
+                       "total_latency_ms": 254486.9, "parse_errors": 215, "matches": 2})
+        state["players"] = [silent]
+        state["updated_at"] = "2026-08-27T00:00:00+09:00"
+        sa.validate_ranking_document(state, "test")
+        row = [line for line in sa.render_ranking_markdown(state).splitlines()
+               if "`silent`" in line][0]
+        self.assertIn("100%", row)
+
+    def test_markdown_marks_a_player_the_ranking_excludes(self):
+        state = sa._new_ranking("test", {"display_name": "GX10", "gpu": "GB10", "memory_gb": 121})
+        excluded = _player("noisy|ollama|GGUF-MXFP4", 1, 1)
+        excluded.update({"total_requests": 1000, "latency_requests": 1000,
+                         "total_latency_ms": 1000.0, "parse_errors": 500,
+                         "matches": sa.PARSE_ERROR_MIN_GAMES})
+        state["players"] = [excluded]
+        state["updated_at"] = "2026-08-27T00:00:00+09:00"
+        sa.validate_ranking_document(state, "test")
+        row = [line for line in sa.render_ranking_markdown(state).splitlines()
+               if "`noisy`" in line][0]
+        self.assertIn("ランキング対象外", row)
+
 
 if __name__ == "__main__":
     unittest.main()
