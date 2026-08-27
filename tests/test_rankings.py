@@ -96,7 +96,7 @@ class TestPersistentRanking(unittest.TestCase):
                 return _valid_match(a, b, 1)
 
             with patch.object(sa, "run_match", side_effect=fake_run):
-                position = sa._ladder_insertion_position(
+                position, _next_seed = sa._ladder_insertion_position(
                     players, lambda pid: agents[pid.split("|", 1)[0]], 10.0, 1,
                     [], new, "new|dummy|test-FP16", state,
                 )
@@ -113,7 +113,7 @@ class TestPersistentRanking(unittest.TestCase):
         state = {"players": players}
 
         with patch.object(sa, "run_match", return_value=_valid_match(old, new, -1)):
-            position = sa._ladder_insertion_position(
+            position, _next_seed = sa._ladder_insertion_position(
                 players, lambda _pid: old, 10.0, 1, [], new,
                 "new|dummy|test-FP16", state,
             )
@@ -156,6 +156,78 @@ class TestPersistentRanking(unittest.TestCase):
                     )
             self.assertEqual(path.read_bytes(), before)
             self.assertFalse(Path(f"{path}.lock").exists())
+
+    def test_retry_uses_next_seed_and_next_match_skips_it(self):
+        """やり直しは シード+1 を使い、次の試合は +2 から始まる（§5 の刻み幅）。
+
+        詰めて振ると、やり直しが起きた試合の後ろが全部ずれて再現できなくなる。
+        """
+        a, b, c = DummyAgent("a"), DummyAgent("b"), DummyAgent("c")
+        seeds = []
+        invalid = sa.MatchStats(-1, "warmup_failed", 0.0, 0, [], False)
+
+        def fake_run_match(agent_a, agent_b, seed, max_duration):
+            seeds.append(seed)
+            # 1試合目だけ無効にして、やり直しを1回だけ起こす
+            if len(seeds) == 1:
+                return invalid
+            return _valid_match(agent_a, agent_b, 0)
+
+        with tempfile.TemporaryDirectory() as directory:
+            with patch.object(sa, "run_match", side_effect=fake_run_match):
+                sa.run_persistent_tournament(
+                    [a, b, c], {"mode": "dummy"}, strategy="ladder",
+                    games_per_pair=1, rankings_dir=directory, machine_id="test",
+                    out_path=None, verbose=False, base_seed=42,
+                )
+        self.assertEqual(seeds[0], 42)
+        self.assertEqual(seeds[1], 43, "やり直しは シード+1")
+        self.assertNotIn(44, seeds[:2])
+        self.assertEqual(seeds[2], 44, "次の試合は +2 から")
+
+    def test_parse_error_rate_boundary_is_strictly_above_one_percent(self):
+        """ちょうど1%は通し、超えたときだけ弾く（`>` であって `>=` ではない）。"""
+        agents = [sa.HeuristicAgent("a"), sa.HeuristicAgent("b")]
+        ratings = {"a": 1000.0, "b": 1000.0}
+        records = {"a": {"win": 0, "loss": 0, "draw": 0},
+                   "b": {"win": 0, "loss": 0, "draw": 0}}
+
+        def ranking_for(parse_errors):
+            matches = [{
+                "valid": True, "p0": "a", "p1": "b", "winner": None,
+                "stats": [
+                    {"agent": "a", "calls": 100, "parse_errors": parse_errors},
+                    {"agent": "b", "calls": 100, "parse_errors": 0},
+                ],
+            } for _ in range(sa.PARSE_ERROR_MIN_GAMES)]
+            rows = sa.build_ranking(agents, ratings, records, matches)
+            return {r["name"]: r for r in rows}["a"]
+
+        exactly_one_percent = ranking_for(1)
+        self.assertEqual(exactly_one_percent["parse_error_rate"], 0.01)
+        self.assertTrue(exactly_one_percent["ranking_valid"])
+
+        just_over = ranking_for(2)
+        self.assertGreater(just_over["parse_error_rate"], 0.01)
+        self.assertFalse(just_over["ranking_valid"])
+
+    def test_parse_error_rate_is_judged_before_rounding(self):
+        """丸めた値で判定すると 1.004% が 1.00% になって通ってしまう。"""
+        agents = [sa.HeuristicAgent("a"), sa.HeuristicAgent("b")]
+        ratings = {"a": 1000.0, "b": 1000.0}
+        records = {"a": {"win": 0, "loss": 0, "draw": 0},
+                   "b": {"win": 0, "loss": 0, "draw": 0}}
+        # 10万呼び出し中1004件 = 1.004%。1%は超えているが、小数第4位に丸めると 0.01 に戻る帯。
+        matches = [{
+            "valid": True, "p0": "a", "p1": "b", "winner": None,
+            "stats": [
+                {"agent": "a", "calls": 10000, "parse_errors": 104 if i == 0 else 100},
+                {"agent": "b", "calls": 10000, "parse_errors": 0},
+            ],
+        } for i in range(sa.PARSE_ERROR_MIN_GAMES)]
+        row = {r["name"]: r for r in sa.build_ranking(agents, ratings, records, matches)}["a"]
+        self.assertEqual(row["parse_error_rate"], 0.01, "表示は丸めた値")
+        self.assertFalse(row["ranking_valid"], "丸める前の比率で弾く")
 
     def test_corrupt_json_is_renamed_without_overwrite(self):
         with tempfile.TemporaryDirectory() as directory:
