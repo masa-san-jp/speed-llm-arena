@@ -492,6 +492,9 @@ class MatchStats:
     duration: float
     flips: int
     per_player: list[dict] = field(default_factory=list)
+    # False means the result cannot be attributed to the models (for example,
+    # a failed warmup or an API/connection error).  A game timeout is still a
+    # valid model result: the remaining-card rule decides its outcome.
     valid: bool = True
     # Kept separate from per_player for backwards compatibility with the
     # schema-v1 results fixtures.  These counters distinguish a response
@@ -621,7 +624,11 @@ def run_match(agent_a: Agent, agent_b: Agent, seed: int,
     for s in stats:
         s["avg_latency"] = round(s["think_time"] / s["calls"], 3) if s["calls"] else 0.0
         s["think_time"] = round(s["think_time"], 3)
-    valid = not any(s["api_errors"] for s in stats) and not game.end_reason.startswith("timeout")
+    # A timeout is part of the game protocol and therefore an evaluable model
+    # result.  Only API errors make the match ineligible for ranking; a model
+    # that cannot finish in time is evaluated by the timeout/remaining-card
+    # result instead of being silently discarded.
+    valid = not any(s["api_errors"] for s in stats)
     return MatchStats(
         winner=game.winner if game.winner is not None else -1,
         end_reason=game.end_reason,
@@ -648,7 +655,8 @@ def build_ranking(agents: list[Agent], ratings: dict[str, float],
                    records: dict[str, dict], matches: list[dict]) -> list[dict]:
     """json-v1: parse_errors/callsが10試合以上の集計で1%を超えるエージェントは
     ranking_valid=Falseとしてランキング値を無効表示にする。raw値(elo/戦績/エラー率)は隠さない。#2
-    無効試合(valid=False, 例: warmup_failed)は集計に含めない。
+    接続/API障害やウォームアップ失敗の無効試合(valid=False)は集計に含めない。
+    タイムアウトはゲーム結果として集計し、残り枚数の少ない側を勝者とする。
     """
     calls = {a.name: 0 for a in agents}
     parse_errors = {a.name: 0 for a in agents}
@@ -1603,6 +1611,8 @@ def _machine_summary(machine: dict, updated_at: str) -> str:
         parts.append(str(machine["gpu"]))
     if machine.get("memory_gb") is not None:
         parts.append(f"メモリ {machine['memory_gb']:g}GB" if isinstance(machine["memory_gb"], (int, float)) else f"メモリ {machine['memory_gb']}GB")
+    if machine.get("benchmark_variant"):
+        parts.append(f"条件 {machine['benchmark_variant']}")
     parts.append(f"最終更新 {updated_at[:10]}")
     return " / ".join(parts)
 

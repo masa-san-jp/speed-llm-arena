@@ -175,7 +175,7 @@ qwen3.8:27b|ollama|GGUF-Q4_K_M
 
 Elo は初期値1000、K=32、期待勝率 `1/(1+10**((相手-自分)/400))`、勝ち1・引き分け0.5・負け0で、更新前の両者の値から同時に計算する。保存時は小数第1位に丸める。
 
-`--mode round-robin` は参加選手を全ペアで対戦させ、勝ち点（勝ち1、引き分け0.5、負け0）→ Elo → `entry_no` 昇順で並べる。無効試合は勝ち点・試合数から除外し、参加しなかった選手はその下に元の相対順で置く。`entry_no` は既存最大値+1で、欠番を再利用しない。
+`--mode round-robin` は参加選手を全ペアで対戦させ、勝ち点（勝ち1、引き分け0.5、負け0）→ Elo → `entry_no` 昇順で並べる。接続/API障害やウォームアップ失敗の無効試合は勝ち点・試合数から除外する。タイムアウトはゲーム結果として勝ち点・試合数に含め、残り枚数の少ない側を勝者とする。参加しなかった選手はその下に元の相対順で置く。`entry_no` は既存最大値+1で、欠番を再利用しない。
 
 ### 10.4 検証・推移性
 
@@ -185,7 +185,7 @@ Elo は初期値1000、K=32、期待勝率 `1/(1+10**((相手-自分)/400))`、�
 - 全員1勝なら `status: "cyclic"`、`transitivity_warning: true`
 - 引き分けがあれば `status: "inconclusive"`, `inconclusive: true` とし、警告は変更しない
 - 3体未満なら `status: "skipped"`, `reason: "players<3"` とし、警告は変更しない
-- エラー・タイムアウト・パース不能は同じ組を1回だけ再試行し、それでも失敗なら `status: "aborted"`, `failed_pair`, 完了済みの0〜2件の `matches` を残す。偽の勝敗には変換しない
+- 接続/APIエラーは同じ組を1回だけ再試行し、それでも失敗なら `status: "aborted"`, `failed_pair`, 完了済みの0〜2件の `matches` を残す。偽の勝敗には変換しない。ゲームのタイムアウトやモデルの不正応答はモデル評価として結果に反映する
 
 `transitivity_detail` は常に `checked_at` と `status` を持つ。初期値は `{"checked_at": null, "status": "skipped", "reason": "never_run"}`。`status` は `ok` / `cyclic` / `inconclusive` / `skipped` / `aborted` のいずれかである。
 

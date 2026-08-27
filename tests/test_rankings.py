@@ -190,6 +190,27 @@ class TestPersistentRanking(unittest.TestCase):
         self.assertEqual(state["players"][0]["parse_errors"], 1)
         self.assertEqual(state["players"][1]["latency_requests"], 0)
 
+    def test_timeout_match_counts_as_model_result(self):
+        state = sa._new_ranking("test")
+        state["players"] = [
+            _player("a|dummy|test-FP16", 1, 1),
+            _player("b|dummy|test-FP16", 2, 2),
+        ]
+        record = {
+            "p0": "a|dummy|test-FP16", "p1": "b|dummy|test-FP16",
+            "valid": True, "winner": "b|dummy|test-FP16",
+            "reason": "timeout_fewer_cards", "stats": [
+                {"parse_errors": 3}, {"parse_errors": 0},
+            ], "request_metrics": [
+                {"total_requests": 4, "latency_requests": 4, "total_latency_ms": 40.0},
+                {"total_requests": 2, "latency_requests": 2, "total_latency_ms": 20.0},
+            ],
+        }
+        self.assertTrue(sa._apply_persistent_match(state, record))
+        self.assertEqual(state["players"][0]["loss"], 1)
+        self.assertEqual(state["players"][1]["win"], 1)
+        self.assertEqual(state["players"][0]["matches"], 1)
+
     def test_transitivity_cycle_is_recorded_without_affecting_ranking(self):
         agents = [DummyAgent("a"), DummyAgent("b"), DummyAgent("c")]
         ids = {a.name: f"{a.name}|dummy|test-FP16" for a in agents}

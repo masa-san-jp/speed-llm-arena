@@ -84,7 +84,7 @@ python speed_arena.py --render-rankings
 
 ## 計測メトリクス
 
-`results.json` にはランキング(Elo・勝敗数・parse_error_rate・ranking_valid)に加え、試合ごとにモデルごとの LLM呼び出し回数、平均レイテンシ、有効着手数、無効着手数、JSONパース失敗数、APIエラー数、ウォームアップ状態を記録する。永続ランキングは `total_requests`、`latency_requests`、`total_latency_ms` から平均値を再計算する。
+`results.json` にはランキング(Elo・勝敗数・parse_error_rate・ranking_valid)に加え、試合ごとにモデルごとの LLM呼び出し回数、平均レイテンシ、有効着手数、無効着手数、JSONパース失敗数、APIエラー数、ウォームアップ状態を記録する。永続ランキングは `total_requests`、`latency_requests`、`total_latency_ms` から平均値を再計算する。接続/API障害とウォームアップ失敗だけをランキング対象外とし、ゲームのタイムアウトはモデルの評価結果として勝敗に反映する。
 
 ## ビューア
 
