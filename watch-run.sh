@@ -4,8 +4,8 @@
 # because its only output was a results file written after the last match.
 set -u
 
-LOG=${1:-/home/masa/.aiko/logs/arena-gx10.log}
-OUT=${2:-/home/masa/.aiko/logs/arena-gx10-heartbeat.log}
+LOG=${1:-$HOME/.arena/arena.log}
+OUT=${2:-$HOME/.arena/heartbeat.log}
 MAX_MINUTES=${3:-240}
 
 for ((i = 0; i < MAX_MINUTES; i++)); do
