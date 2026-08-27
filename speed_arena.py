@@ -357,22 +357,42 @@ class OllamaAgent(Agent):
     def __init__(self, model: str, host: str = "http://localhost:11434",
                  timeout: float = 60.0, num_predict: int = MAX_TOKENS,
                  keep_alive: float | str = -1, model_format: str = "GGUF",
-                 quantization: str = "unknown", runtime_version: Optional[str] = None,
+                 quantization: Optional[str] = None, runtime_version: Optional[str] = None,
                  size_gb: Optional[float] = None, num_ctx: int = 4096):
         self.name = model
         self.model = model
         self.runtime = "ollama"
         self.model_format = model_format
-        self.quantization = quantization
+        self._quantization = quantization
         self.runtime_version = runtime_version
         self.size_gb = size_gb
         self.host_label = host
         self.url = host.rstrip("/") + "/api/chat"
+        self.show_url = host.rstrip("/") + "/api/show"
         self.timeout = timeout
         self.num_predict = num_predict
         self.keep_alive = keep_alive
         self.num_ctx = num_ctx
         self.session = requests.Session()
+
+    @property
+    def quantization(self) -> str:
+        # player_id は model/runtime/format/quantization で選手を一意に決める。CLI の
+        # --quantization は実行単位で1つしか渡せないため、量子化の違うモデルを同じ実行に
+        # 並べると片方が誤った履歴に混ざる。指定がなければ ollama 本人に1度だけ聞く。
+        if self._quantization is None:
+            self._quantization = self._fetch_quantization()
+        return self._quantization
+
+    def _fetch_quantization(self) -> str:
+        try:
+            r = self.session.post(self.show_url, json={"model": self.model},
+                                  timeout=self.timeout)
+            r.raise_for_status()
+            level = r.json().get("details", {}).get("quantization_level")
+        except (requests.RequestException, ValueError):
+            return "unknown"
+        return level or "unknown"
 
     def decide(self, snapshot: Snapshot) -> dict:
         payload = {
@@ -1734,7 +1754,7 @@ def main() -> None:
         agents = [
             OllamaAgent(m, host=h, keep_alive=args.max_duration + 60.0,
                         model_format=args.model_format or "GGUF",
-                        quantization=args.quantization or "unknown",
+                        quantization=args.quantization,
                         runtime_version=args.runtime_version, size_gb=args.size_gb,
                         num_ctx=args.num_ctx)
             for m, h in zip(args.models, hosts)

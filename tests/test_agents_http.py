@@ -142,6 +142,25 @@ class TestOllamaAgentHTTP(unittest.TestCase):
         result = agent.warmup()
         self.assertEqual(result["status"], "failed")
 
+    def test_quantization_is_asked_once_when_not_given(self):
+        with MockServer([{"details": {"quantization_level": "MXFP4"}}]) as server:
+            agent = sa.OllamaAgent("test-model", host=server.url)
+            self.assertEqual(agent.quantization, "MXFP4")
+            self.assertEqual(agent.quantization, "MXFP4")
+            self.assertEqual(len(server.requests), 1)
+            self.assertEqual(server.requests[0]["path"], "/api/show")
+            self.assertEqual(server.requests[0]["json"]["model"], "test-model")
+
+    def test_quantization_given_explicitly_is_not_asked(self):
+        with MockServer([{"details": {"quantization_level": "MXFP4"}}]) as server:
+            agent = sa.OllamaAgent("test-model", host=server.url, quantization="Q4_K_M")
+            self.assertEqual(agent.quantization, "Q4_K_M")
+            self.assertEqual(server.requests, [])
+
+    def test_quantization_falls_back_to_unknown_when_unreachable(self):
+        agent = sa.OllamaAgent("test-model", host=f"http://127.0.0.1:{free_port()}", timeout=2.0)
+        self.assertEqual(agent.quantization, "unknown")
+
 
 class TestAnthropicAgentHTTP(unittest.TestCase):
     def test_decide_sends_json_v1_contract(self):
