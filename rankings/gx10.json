@@ -2,9 +2,13 @@
   "schema_version": 1,
   "machine_id": "gx10",
   "machine": {
-    "display_name": "GX10",
-    "gpu": "NVIDIA GB10",
-    "memory_gb": 121,
+    "display_name": "DGX-Spark-GB10-128GB",
+    "model": "NVIDIA DGX Spark",
+    "chip": "NVIDIA GB10",
+    "memory_gb": 128,
+    "host": "gx10-e7b7",
+    "ollama": "local",
+    "context_length": 4096,
     "benchmark_variant": "standard-speed-26-card (max-duration=180s)"
   },
   "updated_at": "2026-08-27T21:18:56+09:00",
