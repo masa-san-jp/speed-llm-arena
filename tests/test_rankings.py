@@ -240,6 +240,72 @@ class TestPersistentRanking(unittest.TestCase):
             self.assertEqual(len(backups), 1)
             self.assertIn("wrong", backups[0].read_text())
 
+    def test_future_schema_version_is_refused_without_touching_the_file(self):
+        """新しい版は読まずに終わる。知らない項目を落として書き戻すのが一番静かな壊し方。"""
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory, "test.json")
+            payload = '{"schema_version":99,"machine_id":"test"}'
+            path.write_text(payload, encoding="utf-8")
+            with self.assertRaises(sa.RankingSchemaError):
+                sa.load_ranking(path, "test")
+            # 退避もしない。壊れているのではなく、こちらが古いだけ。
+            self.assertEqual(path.read_text(encoding="utf-8"), payload)
+            self.assertEqual(list(Path(directory).glob("test.json.corrupt-*")), [])
+
+    def test_missing_schema_version_is_treated_as_corrupt(self):
+        """version を書かない別物かもしれないので、1 と見なして読まない。"""
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory, "test.json")
+            path.write_text('{"machine_id":"test","players":[]}', encoding="utf-8")
+            with self.assertRaises(sa.RankingError):
+                sa.load_ranking(path, "test")
+            self.assertFalse(path.exists())
+            self.assertEqual(len(list(Path(directory).glob("test.json.corrupt-*"))), 1)
+
+    def test_missing_file_starts_an_empty_ranking_without_quarantine(self):
+        """新しいマシンの初回。壊れているのとは別で、退避するものが無い。"""
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory, "test.json")
+            state = sa.load_ranking(path, "test")
+            self.assertEqual(state["players"], [])
+            self.assertEqual(list(Path(directory).glob("test.json.corrupt-*")), [])
+
+    def test_first_player_takes_rank_one_without_playing(self):
+        """1体しか居ない表に順位を付けただけ。強さは測れていないので Elo は初期値のまま。"""
+        solo = DummyAgent("solo")
+        with tempfile.TemporaryDirectory() as directory:
+            with patch.object(sa, "run_match", side_effect=AssertionError("試合をしてはいけない")):
+                sa.run_persistent_tournament(
+                    [solo], {"mode": "dummy"}, strategy="ladder", games_per_pair=1,
+                    rankings_dir=directory, machine_id="test", out_path=None, verbose=False,
+                )
+            data = json.loads(Path(directory, "test.json").read_text(encoding="utf-8"))
+            self.assertEqual(len(data["players"]), 1)
+            self.assertEqual(data["players"][0]["rank"], 1)
+            self.assertEqual(data["players"][0]["elo"], 1000.0)
+            self.assertEqual(data["players"][0]["matches"], 0)
+
+    def test_second_player_settles_in_one_match(self):
+        """N=1 は特別扱いしない。lo=1, hi=2 の探索が1試合で決着する。"""
+        first, second = DummyAgent("first"), DummyAgent("second")
+        played = []
+
+        def fake_run(x, y, seed, max_duration):
+            played.append((x.name, y.name))
+            return _valid_match(x, y, 0)   # 新入り(second)が勝つ
+
+        with tempfile.TemporaryDirectory() as directory:
+            with patch.object(sa, "run_match", side_effect=fake_run):
+                sa.run_persistent_tournament(
+                    [first, second], {"mode": "dummy"}, strategy="ladder", games_per_pair=1,
+                    rankings_dir=directory, machine_id="test", out_path=None, verbose=False,
+                )
+            self.assertEqual(len(played), 1, "1試合で決まる")
+            data = json.loads(Path(directory, "test.json").read_text(encoding="utf-8"))
+            by_rank = {p["rank"]: p["model"] for p in data["players"]}
+            self.assertEqual(by_rank[1], "second", "勝った新入りが上")
+            self.assertEqual(by_rank[2], "first")
+
     def test_round_robin_uses_points_then_elo_then_entry_number(self):
         a, b, c = DummyAgent("a"), DummyAgent("b"), DummyAgent("c")
         outcomes = {("a", "b"): 0, ("a", "c"): 0, ("b", "c"): 0}
