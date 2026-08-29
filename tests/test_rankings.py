@@ -461,3 +461,107 @@ class TestPersistentRanking(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestAdjacentEloRematch(unittest.TestCase):
+    """Issue #11: 隣り合う順位で Elo が逆転していたら、その2体だけ再戦する。
+
+    順位の正本は rank のままで、Elo で並べ替えはしない（§10.3）。逆転が表に
+    残ると、同じ表の2行を見比べた人が表そのものを信用しなくなるので、
+    1試合だけ実際に戦わせて決める。
+    """
+
+    def _state(self, elos):
+        state = sa._new_ranking("test")
+        state["players"] = [
+            _player(f"m{i}|dummy|test-FP16", i + 1, i + 1, elo)
+            for i, elo in enumerate(elos)
+        ]
+        return state
+
+    def _agents(self, state):
+        return {p["player_id"]: DummyAgent(p["model"]) for p in state["players"]}
+
+    def test_one_match_resolves_the_inversion(self):
+        state = self._state([1100.0, 969.5, 1016.0])
+        agents = self._agents(state)
+        played = []
+
+        def fake_run(a, b, seed, max_duration):
+            played.append((a.name, b.name))
+            return _valid_match(a, b, 1)  # 下位（b）が勝つ
+
+        with patch.object(sa, "run_match", side_effect=fake_run):
+            sa._rematch_adjacent_elo_inversion(state, agents, 10.0, 1, [])
+        self.assertEqual(len(played), 1)
+        self.assertEqual([p["model"] for p in state["players"]], ["m0", "m2", "m1"])
+
+    def test_lower_player_loses_and_nothing_moves(self):
+        state = self._state([1100.0, 969.5, 1016.0])
+        before = [p["player_id"] for p in state["players"]]
+        agents = self._agents(state)
+        played = []
+
+        def fake_run(a, b, seed, max_duration):
+            played.append((a.name, b.name))
+            return _valid_match(a, b, 0)  # 上位（a）が勝つ
+
+        with patch.object(sa, "run_match", side_effect=fake_run):
+            sa._rematch_adjacent_elo_inversion(state, agents, 10.0, 1, [])
+        self.assertEqual(len(played), 1, "負けても再戦を繰り返さない")
+        self.assertEqual([p["player_id"] for p in state["players"]], before)
+
+    def test_no_inversion_plays_nothing(self):
+        state = self._state([1100.0, 1050.0, 1000.0])
+        agents = self._agents(state)
+        with patch.object(sa, "run_match", side_effect=AssertionError("試合が走った")):
+            sa._rematch_adjacent_elo_inversion(state, agents, 10.0, 1, [])
+
+    def test_largest_gap_is_chosen_when_two_inversions_exist(self):
+        # 1位1000 / 2位1010（差10） と 3位900 / 4位1000（差100）
+        state = self._state([1000.0, 1010.0, 900.0, 1000.0])
+        agents = self._agents(state)
+        played = []
+
+        def fake_run(a, b, seed, max_duration):
+            played.append((a.name, b.name))
+            return _valid_match(a, b, 0)
+
+        with patch.object(sa, "run_match", side_effect=fake_run):
+            sa._rematch_adjacent_elo_inversion(state, agents, 10.0, 1, [])
+        self.assertEqual(played, [("m2", "m3")])
+
+    def test_pair_missing_from_this_run_is_skipped(self):
+        state = self._state([1100.0, 969.5, 1016.0])
+        agents = {state["players"][0]["player_id"]: DummyAgent("m0")}
+        with patch.object(sa, "run_match", side_effect=AssertionError("試合が走った")):
+            sa._rematch_adjacent_elo_inversion(state, agents, 10.0, 1, [])
+
+    def test_tournament_run_resolves_the_inversion_end_to_end(self):
+        """関数だけでなく、実行経路に繋がっていることを見る。
+
+        呼び出しを外しても関数単体のテストは通ってしまうので、これが無いと
+        「実装したが誰も呼んでいない」を見逃す（2026-08-30 実測）。
+        """
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory, "test.json")
+            state = sa._new_ranking("test")
+            state["players"] = [
+                _player("hi|dummy|test-FP16", 1, 1, 969.5),
+                _player("lo|dummy|test-FP16", 2, 2, 1016.0),
+            ]
+            sa.atomic_write_ranking(path, state)
+
+            hi, lo = DummyAgent("hi"), DummyAgent("lo")
+
+            def fake_run(a, b, seed, max_duration):
+                return _valid_match(a, b, 1)  # 下位が勝つ
+
+            with patch.object(sa, "run_match", side_effect=fake_run):
+                sa.run_persistent_tournament(
+                    [hi, lo], {"mode": "dummy"}, strategy="ladder",
+                    games_per_pair=0, rankings_dir=directory, machine_id="test",
+                    out_path=None, verbose=False,
+                )
+            data = json.loads(path.read_text())
+            self.assertEqual([p["model"] for p in data["players"]], ["lo", "hi"])

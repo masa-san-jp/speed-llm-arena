@@ -1246,6 +1246,49 @@ def apply_ladder_result(players: list[dict], player_a: str, player_b: str,
         _renumber(players)
 
 
+def _rematch_adjacent_elo_inversion(state: dict, agents_by_id: dict, max_duration: float,
+                                    seed: int, records: list[dict]) -> int:
+    """Play one match where the row below has the higher Elo, and let it decide.
+
+    Rank is the ladder position and is not re-sorted by Elo (§10.3). A player
+    that entered on a draw sits below and, until it causes an upset, has no way
+    up — so a table can honestly show 3位 Elo 969.5 above 4位 Elo 1016.0. The
+    rule is right and the table still stops being believable, because a reader
+    compares the two rows in front of them.
+
+    So the inversion is settled by playing, not by re-sorting the display. One
+    pair per run, the widest gap first: fixing them all chains, and the number
+    of matches a run costs stops being predictable.
+    """
+    players = state["players"]
+    best = None
+    for i in range(len(players) - 1):
+        upper, lower = players[i], players[i + 1]
+        gap = float(lower["elo"]) - float(upper["elo"])
+        if gap <= 0:
+            continue
+        if upper["player_id"] not in agents_by_id or lower["player_id"] not in agents_by_id:
+            continue
+        if best is None or gap > best[0]:
+            best = (gap, upper["player_id"], lower["player_id"])
+    if best is None:
+        return seed
+
+    _, upper_id, lower_id = best
+    attempt_start = len(records)
+    result = _run_persistent_pair(
+        agents_by_id[upper_id], agents_by_id[lower_id], upper_id, lower_id,
+        seed, max_duration, records,
+    )
+    seed += 2
+    # move_rank=False: the swap below is the only rank change this match may
+    # cause. Letting the normal ladder rule move it too would apply it twice.
+    _apply_attempts(state, records, attempt_start, ladder=True, move_rank=False)
+    if result is not None and result["winner"] == lower_id:
+        apply_ladder_result(state["players"], upper_id, lower_id, lower_id)
+    return seed
+
+
 def _metrics_for_match(match: dict) -> list[dict]:
     metrics = match.get("request_metrics")
     if isinstance(metrics, list) and len(metrics) >= 2:
@@ -1622,6 +1665,9 @@ def run_persistent_tournament(agents: list[Agent], config: dict,
                             points[p1_id] += 0.5
             _sort_round_robin(state, set(ids), points, active_ids)
 
+        if strategy == "ladder":
+            seed = _rematch_adjacent_elo_inversion(
+                state, agents_by_id, max_duration, seed, records)
         if verify_transitivity:
             seed = _update_transitivity(state, agents_by_id, records, max_duration, seed)
         state["updated_at"] = _now_iso()
