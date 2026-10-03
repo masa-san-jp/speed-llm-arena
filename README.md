@@ -124,3 +124,9 @@ python -m unittest discover -s tests -p "test_*.py"
 - 観戦用リプレイ再生(`event_log`を使ったビューアのリプレイ機能。現行のビューアMVPは対象外)
 - レイテンシと正確性の散布図など分析レポートの自動生成
 - 「思考時間トークン換算」モードの追加でハードウェア非依存のランキング
+
+## 成立と評価設計の変遷
+
+[2026年8月1日の初期実装](https://github.com/masa-san-jp/speed-llm-arena/commit/ea15009afe6050c5ec258e72b60c7a000d59a686)で、SpeedのルールエンジンとLLM対戦の構成が導入されています。続いて[ウォームアップとjson-v1の統一](https://github.com/masa-san-jp/speed-llm-arena/commit/fe1be73d9c25663f3325f64c0571ec7c5461ca50)、[永続ランキング](https://github.com/masa-san-jp/speed-llm-arena/commit/7c6294e751ca349fdad937d332516a9307eca43d)、[Elo逆転を追加対戦で解消する変更](https://github.com/masa-san-jp/speed-llm-arena/commit/6279b330768174476ab197ca7519a9a81a886b96)へ進んでいます。
+
+この変遷は、対戦を動かす段階から、初回ロード・出力形式・マシン条件・対戦順序を区別して比較する段階への整備として読めます。Speedでは思考中にも局面が変わるため、実時間の応答と合法手選択の両方が勝敗へ影響します。静的な正答率と同じ尺度ではなく、特定のハードウェアと対戦条件での結果です。一般的な知能の優劣や、記録にない先行ベンチマークとの直接の系譜は主張しません。
